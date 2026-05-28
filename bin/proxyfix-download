@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Smart download: direct-first for large CDN files, proxy fallback when needed.
+set -euo pipefail
+
+PROXYFIX_ROOT="${PROXYFIX_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+MANIFEST="${MANIFEST:-${PROXYFIX_ROOT}/manifests/apps.yaml}"
+
+URL="${1:?Usage: proxyfix-download URL [output]}"
+OUT="${2:-}"
+
+# shellcheck source=../lib/common.sh
+source "${PROXYFIX_ROOT}/lib/common.sh"
+
+THRESHOLD=$(python3 - "$MANIFEST" <<'PY'
+import re, sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+for line in text.splitlines():
+    if "large_threshold_bytes:" in line:
+        print(line.split(":", 1)[1].strip().split()[0])
+        break
+else:
+    print(52428800)
+PY
+)
+
+host=$(python3 -c "import urllib.parse as u; print(u.urlparse('$URL').hostname or '')")
+
+is_direct_large() {
+  python3 - "$MANIFEST" "$host" <<'PY'
+import re, sys
+from pathlib import Path
+
+manifest = Path(sys.argv[1]).read_text(encoding="utf-8")
+host = sys.argv[2].lower()
+suffixes = []
+in_section = False
+for line in manifest.splitlines():
+    if line.strip() == "direct_large_suffixes:":
+        in_section = True
+        continue
+    if in_section and re.match(r"^\s+-\s+", line):
+        suffixes.append(line.strip()[2:].strip().strip("'\""))
+    elif in_section and line and not line.startswith(" "):
+        break
+for s in suffixes:
+    if host == s or host.endswith("." + s):
+        print("yes")
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
+get_size() {
+  curl -sSI --max-time 15 "$URL" 2>/dev/null | awk 'tolower($1)=="content-length:" {print $2; exit}' | tr -d '\r'
+}
+
+port=$(mixed_port)
+proxy_url="http://127.0.0.1:${port}"
+
+try_direct=false
+if is_direct_large 2>/dev/null; then
+  try_direct=true
+fi
+
+size=$(get_size || echo 0)
+[[ -z $size || ! $size =~ ^[0-9]+$ ]] && size=0
+
+if [[ $try_direct == true ]] && [[ $size -ge $THRESHOLD || $size -eq 0 ]]; then
+  echo "proxyfix-download: trying DIRECT (host=${host}, size=${size})"
+  if [[ -n $OUT ]]; then
+    if curl -fSL --noproxy '*' --connect-timeout 30 --max-time 3600 -o "$OUT" "$URL" 2>/dev/null; then
+      echo "proxyfix-download: saved via DIRECT → $OUT"
+      exit 0
+    fi
+  else
+    if curl -fSL --noproxy '*' --connect-timeout 30 --max-time 3600 "$URL" 2>/dev/null; then
+      echo "proxyfix-download: streamed via DIRECT"
+      exit 0
+    fi
+  fi
+  echo "proxyfix-download: DIRECT failed, retrying via proxy ${proxy_url}"
+fi
+
+if [[ $try_direct == false ]]; then
+  echo "proxyfix-download: using proxy ${proxy_url} (host not in direct_large list)"
+else
+  echo "proxyfix-download: using proxy ${proxy_url}"
+fi
+
+if [[ -n $OUT ]]; then
+  curl -fSL -x "$proxy_url" --connect-timeout 30 --max-time 3600 -o "$OUT" "$URL"
+  echo "proxyfix-download: saved via proxy → $OUT"
+else
+  curl -fSL -x "$proxy_url" --connect-timeout 30 --max-time 3600 "$URL"
+fi

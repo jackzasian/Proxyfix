@@ -1,0 +1,181 @@
+# Proxyfix manifest — single source of truth for Clash fake-ip-filter and DIRECT rules.
+# Parsed by lib/patch-clash.sh and bin/proxyfix-download.
+
+merge_profile: mrkG4UPD40Es.yaml
+
+fake_ip_filter:
+  # Always present (security / LAN)
+  - '*.lan'
+  - '*.local'
+  - localhost.ptlogin2.qq.com
+  - 'geoip:cn'
+  # Arch / Omarchy / pacman
+  - '+.archlinux.org'
+  - '+.archlinux.org.cn'
+  - '+.omarchy.org'
+  # TickTick
+  - '+.ticktick.com'
+  # HuggingFace / LM Studio
+  - '+.huggingface.co'
+  - '+.hf.co'
+  - '+.lmstudio.ai'
+  # Cursor / VS Marketplace
+  - '+.cursor.sh'
+  - '+.cursor.com'
+  - '+.cursorapi.com'
+  - '+marketplace.visualstudio.com'
+  - '+.vscode-cdn.net'
+  - '+.gallerycdn.vsassets.io'
+  # Discord
+  - '+.discord.com'
+  - '+.discord.gg'
+  - '+.discordapp.com'
+  - '+.discordapp.net'
+  - '+.discord.media'
+  # Steam
+  - '+.steampowered.com'
+  - '+.steamcommunity.com'
+  - '+.steamserver.net'
+  - '+.steamstatic.com'
+  - '+.valvesoftware.com'
+  - '+.steamcontent.com'
+  - '+.steam-chat.com'
+  - '+steamconnecttest.com'
+  - '+.steamgames.com'
+  - '+.steamusercontent.com'
+  - '+.akamaihd.net'
+  - '+.akamaized.net'
+  - '+.clngaa.com'
+  - '+.eccdnx.com'
+  - '+.pphimalayanrt.com'
+  - '+.qtlglb.com'
+  - '+.ksyna.com'
+  - '+.baishangeek.cn'
+  - '+.ngaagslb.net'
+
+# prepend-rules: large downloads bypass VPN node (DIRECT)
+direct_prepend_rules:
+  - DOMAIN-SUFFIX,ngaagslb.net,DIRECT
+  - DOMAIN-SUFFIX,baishangeek.cn,DIRECT
+  - DOMAIN-SUFFIX,steampowered.com,DIRECT
+  - DOMAIN-SUFFIX,steamcommunity.com,DIRECT
+  - DOMAIN-SUFFIX,steamserver.net,DIRECT
+  - DOMAIN-SUFFIX,steamstatic.com,DIRECT
+  - DOMAIN-SUFFIX,steamcontent.com,DIRECT
+  - DOMAIN-SUFFIX,steamusercontent.com,DIRECT
+  - DOMAIN-SUFFIX,steamgames.com,DIRECT
+  - DOMAIN-SUFFIX,steam-chat.com,DIRECT
+  - DOMAIN-SUFFIX,valvesoftware.com,DIRECT
+  - DOMAIN-SUFFIX,steamstat.us,DIRECT
+  - DOMAIN-SUFFIX,clngaa.com,DIRECT
+  - DOMAIN-SUFFIX,eccdnx.com,DIRECT
+  - DOMAIN-SUFFIX,pphimalayanrt.com,DIRECT
+  - DOMAIN-SUFFIX,qtlglb.com,DIRECT
+  - DOMAIN-SUFFIX,ksyna.com,DIRECT
+  - DOMAIN-SUFFIX,huggingface.co,DIRECT
+  - DOMAIN-SUFFIX,hf.co,DIRECT
+  - DOMAIN-SUFFIX,lmstudio.ai,DIRECT
+  - DOMAIN-SUFFIX,cloudflarestorage.com,DIRECT
+
+# Domains for direct-first large downloads (suffix match on hostname)
+direct_large_suffixes:
+  - steampowered.com
+  - steamcommunity.com
+  - steamserver.net
+  - steamstatic.com
+  - steamcontent.com
+  - steamusercontent.com
+  - steamgames.com
+  - steam-chat.com
+  - valvesoftware.com
+  - steamstat.us
+  - clngaa.com
+  - eccdnx.com
+  - pphimalayanrt.com
+  - qtlglb.com
+  - ksyna.com
+  - baishangeek.cn
+  - ngaagslb.net
+  - huggingface.co
+  - hf.co
+  - lmstudio.ai
+  - cloudflarestorage.com
+  - akamaihd.net
+  - akamaized.net
+
+# Health-check probe hosts (must NOT resolve to 198.18.x after fix)
+probe_hosts:
+  - api2.cursor.sh
+  - store.steampowered.com
+  - aur.archlinux.org
+
+# App groups for --app filter
+apps:
+  cursor:
+    fake_ip_filter:
+      - '+.cursor.sh'
+      - '+.cursor.com'
+      - '+.cursorapi.com'
+      - '+marketplace.visualstudio.com'
+      - '+.vscode-cdn.net'
+      - '+.gallerycdn.vsassets.io'
+    probes:
+      - api2.cursor.sh
+  discord:
+    fake_ip_filter:
+      - '+.discord.com'
+      - '+.discord.gg'
+      - '+.discordapp.com'
+      - '+.discordapp.net'
+      - '+.discord.media'
+  steam:
+    fake_ip_filter:
+      - '+.steampowered.com'
+      - '+.steamcommunity.com'
+      - '+.steamserver.net'
+      - '+.steamstatic.com'
+      - '+.valvesoftware.com'
+      - '+.steamcontent.com'
+      - '+.steam-chat.com'
+      - '+steamconnecttest.com'
+      - '+.steamgames.com'
+      - '+.steamusercontent.com'
+      - '+.akamaihd.net'
+      - '+.akamaized.net'
+      - '+.clngaa.com'
+      - '+.eccdnx.com'
+      - '+.pphimalayanrt.com'
+      - '+.qtlglb.com'
+      - '+.ksyna.com'
+      - '+.baishangeek.cn'
+      - '+.ngaagslb.net'
+    direct_prepend_rules:
+      - DOMAIN-SUFFIX,steampowered.com,DIRECT
+      - DOMAIN-SUFFIX,steamcommunity.com,DIRECT
+      - DOMAIN-SUFFIX,steamserver.net,DIRECT
+      - DOMAIN-SUFFIX,steamstatic.com,DIRECT
+      - DOMAIN-SUFFIX,steamcontent.com,DIRECT
+      - DOMAIN-SUFFIX,steamusercontent.com,DIRECT
+      - DOMAIN-SUFFIX,steamgames.com,DIRECT
+      - DOMAIN-SUFFIX,steam-chat.com,DIRECT
+      - DOMAIN-SUFFIX,valvesoftware.com,DIRECT
+      - DOMAIN-SUFFIX,steamstat.us,DIRECT
+      - DOMAIN-SUFFIX,clngaa.com,DIRECT
+      - DOMAIN-SUFFIX,eccdnx.com,DIRECT
+      - DOMAIN-SUFFIX,pphimalayanrt.com,DIRECT
+      - DOMAIN-SUFFIX,qtlglb.com,DIRECT
+      - DOMAIN-SUFFIX,ksyna.com,DIRECT
+      - DOMAIN-SUFFIX,ngaagslb.net,DIRECT
+      - DOMAIN-SUFFIX,baishangeek.cn,DIRECT
+    probes:
+      - store.steampowered.com
+  pacman:
+    fake_ip_filter:
+      - '+.archlinux.org'
+      - '+.archlinux.org.cn'
+      - '+.omarchy.org'
+    probes:
+      - aur.archlinux.org
+
+download:
+  large_threshold_bytes: 52428800  # 50 MB

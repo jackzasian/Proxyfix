@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# proxyfix — unified Clash proxy detect & fix tool
+set -euo pipefail
+
+PROXYFIX_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+export PROXYFIX_ROOT
+
+usage() {
+  cat <<EOF
+Usage: proxyfix [command] [options]
+
+Commands:
+  fix              Detect and repair proxy issues (default)
+  detect           Check only; exit 1 if broken
+  status           Human-readable status report
+  test             Connectivity smoke tests
+  download URL     Smart download (direct-first for large CDN files)
+
+Options:
+  --quiet          Minimal output (for systemd/hooks)
+  --app NAME       Limit fix to: all|clash|cursor|steam|shell|pacman|discord
+
+Examples:
+  proxyfix fix
+  proxyfix detect
+  proxyfix fix --app steam
+  proxyfix download https://example.com/file.bin
+EOF
+}
+
+CMD="${1:-fix}"
+shift || true
+
+QUIET=""
+APP_FILTER="all"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --quiet|-q) QUIET=1; export QUIET ;;
+    --app) APP_FILTER="${2:?}"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) break ;;
+  esac
+  shift
+done
+
+export APP_FILTER
+
+# shellcheck source=lib/common.sh
+source "${PROXYFIX_ROOT}/lib/common.sh"
+
+case "$CMD" in
+  fix|"")
+    bash "${PROXYFIX_ROOT}/lib/fix.sh"
+    ;;
+  detect)
+    bash "${PROXYFIX_ROOT}/lib/detect.sh"
+    ;;
+  status)
+    bash "${PROXYFIX_ROOT}/lib/detect.sh" || true
+    printf '\n--- Shell ---\n'
+    if [[ -f $PROXY_SH ]]; then
+      # shellcheck source=/dev/null
+      source "$PROXY_SH"
+      proxy_status 2>/dev/null || true
+    fi
+    printf '\nPort: %s\n' "$(mixed_port)"
+    ;;
+  test)
+    bash "${HOME}/.cursor/tools/test-network.sh" 2>/dev/null || {
+      curl -sS --max-time 10 -o /dev/null -w 'google: %{http_code}\n' https://www.google.com
+      curl -sS --max-time 10 -o /dev/null -w 'cursor: %{http_code}\n' https://api2.cursor.sh
+    }
+    ;;
+  download)
+    URL="${1:?URL required}"
+    OUT="${2:-}"
+    exec bash "${PROXYFIX_ROOT}/bin/proxyfix-download" "$URL" ${OUT:+"$OUT"}
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    echo "Unknown command: $CMD" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

@@ -65,6 +65,26 @@ systemctl --user enable proxyfix.path proxyfix.timer
 systemctl --user start proxyfix.path proxyfix.timer
 ok "Enabled proxyfix.path and proxyfix.timer"
 
+NET_SVC="${SYSTEMD}/proxyfix-network.service"
+cat >"$NET_SVC" <<EOF
+[Unit]
+Description=Proxyfix network change monitor
+
+[Service]
+Type=simple
+ExecStart=${REPO}/bin/proxyfix-network-monitor
+Restart=on-failure
+RestartSec=10
+Environment=HOME=${HOME}
+
+[Install]
+WantedBy=default.target
+EOF
+chmod +x "${REPO}/bin/proxyfix-network-monitor"
+systemctl --user enable proxyfix-network.service
+systemctl --user start proxyfix-network.service 2>/dev/null || true
+ok "Enabled proxyfix-network.service"
+
 if [[ -f $VERGE_YAML ]]; then
   if grep -q '^startup_script:' "$VERGE_YAML"; then
     python3 - "$VERGE_YAML" "$BIN" <<'PY'

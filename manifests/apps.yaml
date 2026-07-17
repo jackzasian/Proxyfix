@@ -9,12 +9,19 @@ fake_ip_filter:
   - '*.local'
   - localhost.ptlogin2.qq.com
   - 'geoip:cn'
-  # Arch / Omarchy / pacman
+  # Arch / Omarchy / pacman / git
   - '+.archlinux.org'
   - '+.archlinux.org.cn'
   - '+.omarchy.org'
+  - '+.github.com'
+  - '+github.com'
+  - '+objects.githubusercontent.com'
+  - '+raw.githubusercontent.com'
+  - '+codeload.github.com'
   # TickTick
   - '+.ticktick.com'
+  # Strava — must use real CN IP (not proxy) for location / anti-fraud checks
+  - '+.strava.com'
   # HuggingFace / LM Studio
   - '+.huggingface.co'
   - '+.hf.co'
@@ -23,6 +30,8 @@ fake_ip_filter:
   - '+.cursor.sh'
   - '+.cursor.com'
   - '+.cursorapi.com'
+  - '+.workos.com'
+  - '+.workosdns.com'
   - '+marketplace.visualstudio.com'
   - '+.vscode-cdn.net'
   - '+.gallerycdn.vsassets.io'
@@ -32,6 +41,10 @@ fake_ip_filter:
   - '+.discordapp.com'
   - '+.discordapp.net'
   - '+.discord.media'
+  # Anki sync
+  - '+.ankiweb.net'
+  - '+sync.ankiweb.net'
+  - '+ankiweb.net'
   # Steam
   - '+.steampowered.com'
   - '+.steamcommunity.com'
@@ -55,6 +68,14 @@ fake_ip_filter:
 
 # prepend-rules: large downloads bypass VPN node (DIRECT)
 direct_prepend_rules:
+  - DOMAIN-SUFFIX,strava.com,DIRECT
+  - DOMAIN-KEYWORD,strava,DIRECT
+  - DOMAIN-SUFFIX,d3nn82uaxijpm6.cloudfront.net,DIRECT
+  - DOMAIN-SUFFIX,dgtzuqphqg23d.cloudfront.net,DIRECT
+  - DOMAIN-SUFFIX,dgalywyr863hv.cloudfront.net,DIRECT
+  - DOMAIN-SUFFIX,d3o5xota0a1fcr.cloudfront.net,DIRECT
+  - DOMAIN-SUFFIX,d21y75miwcfqoq.cloudfront.net,DIRECT
+  - DOMAIN-SUFFIX,d3u3hkafyj3iak.cloudfront.net,DIRECT
   - DOMAIN-SUFFIX,ngaagslb.net,DIRECT
   - DOMAIN-SUFFIX,baishangeek.cn,DIRECT
   - DOMAIN-SUFFIX,steampowered.com,DIRECT
@@ -108,6 +129,7 @@ probe_hosts:
   - api2.cursor.sh
   - store.steampowered.com
   - aur.archlinux.org
+  - www.strava.com
 
 # App groups for --app filter
 apps:
@@ -116,6 +138,8 @@ apps:
       - '+.cursor.sh'
       - '+.cursor.com'
       - '+.cursorapi.com'
+      - '+.workos.com'
+      - '+.workosdns.com'
       - '+marketplace.visualstudio.com'
       - '+.vscode-cdn.net'
       - '+.gallerycdn.vsassets.io'
@@ -176,6 +200,36 @@ apps:
       - '+.omarchy.org'
     probes:
       - aur.archlinux.org
+  anki:
+    fake_ip_filter:
+      - '+.ankiweb.net'
+      - '+sync.ankiweb.net'
+      - '+ankiweb.net'
+    probes:
+      - sync.ankiweb.net
+      - ankiweb.net
+  strava:
+    fake_ip_filter:
+      - '+.strava.com'
+    direct_prepend_rules:
+      - DOMAIN-SUFFIX,strava.com,DIRECT
+      - DOMAIN-KEYWORD,strava,DIRECT
+      - DOMAIN-SUFFIX,d3nn82uaxijpm6.cloudfront.net,DIRECT
+      - DOMAIN-SUFFIX,dgtzuqphqg23d.cloudfront.net,DIRECT
+      - DOMAIN-SUFFIX,dgalywyr863hv.cloudfront.net,DIRECT
+      - DOMAIN-SUFFIX,d3o5xota0a1fcr.cloudfront.net,DIRECT
+      - DOMAIN-SUFFIX,d21y75miwcfqoq.cloudfront.net,DIRECT
+      - DOMAIN-SUFFIX,d3u3hkafyj3iak.cloudfront.net,DIRECT
+    probes:
+      - www.strava.com
+  spotify:
+    proxy_prepend_rules:
+      - DOMAIN-SUFFIX,spotify.com,香港自动
+      - DOMAIN-SUFFIX,scdn.co,香港自动
+      - DOMAIN-SUFFIX,spotifycdn.com,香港自动
+      - DOMAIN-SUFFIX,spotifycdn.net,香港自动
+      - DOMAIN-SUFFIX,pscdn.co,香港自动
+      - DOMAIN-KEYWORD,spotify,香港自动
 
 download:
   large_threshold_bytes: 52428800  # 50 MB

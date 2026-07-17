@@ -12,6 +12,7 @@ LOG_DIR="${LOG_DIR:-${HOME}/.local/share/proxyfix}"
 PROXY_SH="${PROXY_SH:-${HOME}/.config/omarchy/proxy.sh}"
 CURSOR_SETTINGS="${CURSOR_SETTINGS:-${HOME}/.config/Cursor/User/settings.json}"
 ELECTRON_FLAGS="${ELECTRON_FLAGS:-${HOME}/.config/electron-flags.conf}"
+CHROMIUM_FLAGS="${CHROMIUM_FLAGS:-${HOME}/.config/chromium-flags.conf}"
 
 ok()   { [[ -z ${QUIET:-} ]] && printf '\033[32m✓\033[0m %s\n' "$*" || logger -t proxyfix "OK: $*"; }
 warn() { [[ -z ${QUIET:-} ]] && printf '\033[33m!\033[0m %s\n' "$*" || logger -t proxyfix "WARN: $*"; }

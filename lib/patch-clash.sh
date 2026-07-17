@@ -80,7 +80,7 @@ def domains_for_filter(data: dict, app_filter: str) -> tuple[list, list]:
         fake = app["fake_ip_filter"]
     if app.get("direct_prepend_rules"):
         direct = app["direct_prepend_rules"]
-    elif app_filter in ("cursor", "discord", "pacman", "ticktick"):
+    elif app_filter in ("cursor", "discord", "pacman", "ticktick", "anki"):
         direct = []
     return fake, direct
 
@@ -182,17 +182,111 @@ def patch_prepend_rules(path: Path, rules: list) -> bool:
     return changed
 
 
+def patch_runtime_rules(path: Path, rules: list) -> bool:
+    """Prepend DIRECT rules to active `rules:` — mihomo ignores merge `prepend-rules` on API reload."""
+    if not path.exists() or not rules:
+        return False
+    text = path.read_text(encoding="utf-8")
+    if "rules:" not in text:
+        return False
+    lines = text.splitlines()
+    out, i, changed = [], 0, False
+    while i < len(lines):
+        line = lines[i]
+        if line.strip() == "rules:":
+            out.append(line)
+            i += 1
+            existing, block = set(), []
+            while i < len(lines):
+                nxt = lines[i]
+                if nxt.startswith("- "):
+                    val = nxt.split("- ", 1)[1].strip()
+                    existing.add(val)
+                    block.append(nxt)
+                    i += 1
+                else:
+                    break
+            for r in reversed(rules):
+                if r not in existing:
+                    block.insert(0, f"- {r}")
+                    changed = True
+            out.extend(block)
+            continue
+        out.append(line)
+        i += 1
+    if changed:
+        path.write_text("\n".join(out) + ("\n" if text.endswith("\n") else ""), encoding="utf-8")
+        print(f"PATCHED runtime rules: {path}")
+    else:
+        print(f"OK runtime rules: {path}")
+    return changed
+
+
+def patch_rules_profile(path: Path, rules: list) -> bool:
+    """Patch Clash Verge rules enhancement `prepend:` list."""
+    if not path.exists() or not rules:
+        return False
+    text = path.read_text(encoding="utf-8")
+    if "prepend:" not in text:
+        return False
+    if re.search(r"^prepend:\s*\[\]\s*$", text, re.MULTILINE):
+        block = "prepend:\n" + "\n".join(f"  - {r}" for r in rules) + "\n"
+        text = re.sub(r"^prepend:\s*\[\]\s*$", block.rstrip(), text, count=1, flags=re.MULTILINE)
+        path.write_text(text, encoding="utf-8")
+        print(f"PATCHED rules profile prepend: {path}")
+        return True
+    lines = text.splitlines()
+    out, i, changed = [], 0, False
+    while i < len(lines):
+        line = lines[i]
+        if line.strip() == "prepend:":
+            out.append(line)
+            i += 1
+            existing, block = set(), []
+            while i < len(lines):
+                nxt = lines[i]
+                if re.match(r"^\s+-\s+", nxt):
+                    val = nxt.split("- ", 1)[1].strip()
+                    existing.add(val)
+                    block.append(nxt)
+                    i += 1
+                else:
+                    break
+            for r in reversed(rules):
+                if r not in existing:
+                    block.insert(0, f"  - {r}")
+                    changed = True
+            out.extend(block)
+            continue
+        out.append(line)
+        i += 1
+    if changed:
+        path.write_text("\n".join(out) + ("\n" if text.endswith("\n") else ""), encoding="utf-8")
+        print(f"PATCHED rules profile prepend: {path}")
+    else:
+        print(f"OK rules profile prepend: {path}")
+    return changed
+
+
 data = load_manifest(manifest_path)
 fake_domains, direct_rules = domains_for_filter(data, app_filter)
 merge = clash_dir / "profiles" / data["merge_profile"]
+rules_profile = clash_dir / "profiles" / "rT8qps5nUb4g.yaml"
 targets = [merge, clash_dir / "clash-verge.yaml", clash_dir / "dns_config.yaml"]
+runtime = clash_dir / "clash-verge.yaml"
 
 any_changed = False
 for t in targets:
     if patch_fake_ip_filter(t, fake_domains):
         any_changed = True
-    if app_filter in ("all", "steam") and patch_prepend_rules(t, direct_rules):
+    if app_filter in ("all", "steam", "strava") and patch_prepend_rules(t, direct_rules):
         any_changed = True
+
+if direct_rules and patch_runtime_rules(runtime, direct_rules):
+    any_changed = True
+
+if direct_rules and patch_rules_profile(rules_profile, direct_rules):
+    any_changed = True
 
 sys.exit(0 if any_changed else 0)
 PY

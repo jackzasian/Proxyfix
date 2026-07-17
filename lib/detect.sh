@@ -117,6 +117,18 @@ check_electron_flags() {
   fi
 }
 
+check_chromium_flags() {
+  local port url
+  port=$(mixed_port)
+  url="http://127.0.0.1:${port}"
+  if [[ ! -f $CHROMIUM_FLAGS ]] || ! grep -qF "127.0.0.1:${port}" "$CHROMIUM_FLAGS" 2>/dev/null; then
+    add_issue "chromium_flags"
+    fail "chromium-flags.conf missing or wrong port (want ${url})"
+  else
+    ok "chromium-flags.conf → ${url}"
+  fi
+}
+
 check_cursor_settings() {
   local port url
   port=$(mixed_port)
@@ -139,6 +151,21 @@ PY
     fail "Cursor settings: http.proxy or proxySupport=override wrong"
   else
     ok "Cursor settings proxy OK"
+  fi
+}
+
+check_gnome_proxy() {
+  command -v gsettings >/dev/null 2>&1 || return 0
+  local port mode http_enabled http_port
+  port=$(mixed_port)
+  mode=$(gsettings get org.gnome.system.proxy mode 2>/dev/null || echo "''")
+  http_enabled=$(gsettings get org.gnome.system.proxy.http enabled 2>/dev/null || echo false)
+  http_port=$(gsettings get org.gnome.system.proxy.http port 2>/dev/null || echo 0)
+  if [[ $mode != "'manual'" || $http_enabled != true || $http_port != "$port" ]]; then
+    add_issue "gnome_proxy"
+    fail "GNOME proxy off or wrong (GTK apps like Wike need manual + http enabled + port ${port})"
+  else
+    ok "GNOME/GTK proxy OK"
   fi
 }
 
@@ -180,7 +207,9 @@ main() {
     check_manifest_in_merge
     check_probe_hosts
     check_electron_flags
+    check_chromium_flags
     check_cursor_settings
+    check_gnome_proxy
     check_pacman_proxy
     check_connectivity
   fi

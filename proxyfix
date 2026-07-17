@@ -2,7 +2,14 @@
 # proxyfix — unified Clash proxy detect & fix tool
 set -euo pipefail
 
-PROXYFIX_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# Resolve symlink: BASH_SOURCE[0] may be ~/.local/bin/proxyfix
+_src="${BASH_SOURCE[0]}"
+while [[ -L $_src ]]; do
+  _dir=$(cd "$(dirname "$_src")" && pwd)
+  _src=$(readlink "$_src")
+  [[ $_src != /* ]] && _src="${_dir}/${_src}"
+done
+PROXYFIX_ROOT=$(cd "$(dirname "$_src")" && pwd)
 export PROXYFIX_ROOT
 
 usage() {

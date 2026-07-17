@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Run proxyfix when NetworkManager reports connectivity changes (WiFi switch, etc.).
+set -euo pipefail
+
+HOME="${HOME:-/home/jackz}"
+PROXYFIX="${HOME}/Developer/Proxyfix/proxyfix"
+DEBOUNCE_SEC=5
+LAST_RUN=0
+
+run_fix() {
+  local now reason=$1
+  now=$(date +%s)
+  if (( now - LAST_RUN < DEBOUNCE_SEC )); then
+    return 0
+  fi
+  LAST_RUN=$now
+  logger -t proxyfix-network "fix triggered: ${reason}"
+  sleep 2
+  "$PROXYFIX" fix --quiet || true
+}
+
+if ! command -v nmcli >/dev/null 2>&1; then
+  logger -t proxyfix-network "nmcli missing — network monitor exiting"
+  exit 1
+fi
+
+# Initial fix after login / service start
+run_fix "service-start"
+
+nmcli monitor 2>/dev/null | while read -r line; do
+  case "$line" in
+    *connectivity*|*\"up\"*|*activated*|*CONNECTED*)
+      run_fix "$line"
+      ;;
+  esac
+done

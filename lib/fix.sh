@@ -64,9 +64,91 @@ EOF
   ok "electron-flags.conf → port ${port}"
 }
 
+fix_clash_pac_file() {
+  local port=${1:-$(mixed_port)}
+  local pac="${HOME}/.config/omarchy/clash-proxy.pac"
+  mkdir -p "$(dirname "$pac")"
+  if [[ ! -f $pac ]]; then
+    cat >"$pac" <<EOF
+// Omarchy PAC — Strava bypasses Clash (real CN IP). Updated by proxyfix.
+function hostMatchesStrava(host) {
+  host = host.toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1")
+    return true;
+  if (dnsDomainIs(host, ".strava.com") || host === "strava.com")
+    return true;
+  if (host.indexOf("strava") !== -1)
+    return true;
+  var cdn = [
+    "d3nn82uaxijpm6.cloudfront.net",
+    "dgtzuqphqg23d.cloudfront.net",
+    "dgalywyr863hv.cloudfront.net",
+    "d3o5xota0a1fcr.cloudfront.net",
+    "d21y75miwcfqoq.cloudfront.net",
+    "d3u3hkafyj3iak.cloudfront.net"
+  ];
+  for (var i = 0; i < cdn.length; i++)
+    if (host === cdn[i])
+      return true;
+  return false;
+}
+function FindProxyForURL(url, host) {
+  if (hostMatchesStrava(host))
+    return "DIRECT";
+  return "PROXY 127.0.0.1:${port}; SOCKS5 127.0.0.1:${port}; DIRECT;";
+}
+EOF
+  else
+    sed -i "s/127.0.0.1:[0-9]\+/127.0.0.1:${port}/g" "$pac"
+  fi
+}
+
+fix_chromium_flags() {
+  local port url tmp
+  port=$(mixed_port)
+  url="http://127.0.0.1:${port}"
+  mkdir -p "$(dirname "$CHROMIUM_FLAGS")"
+  tmp=$(mktemp)
+  if [[ -f $CHROMIUM_FLAGS ]]; then
+    grep -vE '^--proxy-server=|^--proxy-bypass-list=|^--proxy-pac-url=' "$CHROMIUM_FLAGS" \
+      | grep -v '^# Chromium.*Clash' >"$tmp" || true
+  else
+    : >"$tmp"
+  fi
+  {
+    cat "$tmp"
+    printf '%s\n' \
+      "# Chromium — full Clash proxy (Strava via proxy) — updated by proxyfix" \
+      "--proxy-server=${url}"
+  } >"$CHROMIUM_FLAGS"
+  rm -f "$tmp"
+  ok "chromium-flags.conf → ${url} (full proxy)"
+}
+
+fix_zen_pac() {
+  local port pac zen_user
+  port=$(mixed_port)
+  pac="${HOME}/.config/omarchy/clash-proxy.pac"
+  fix_clash_pac_file "$port"
+  for zen_user in "${HOME}/.config/zen/"*/user.js; do
+    [[ -f $zen_user ]] || continue
+    if ! grep -q 'clash-proxy.pac' "$zen_user" 2>/dev/null; then
+      {
+        echo ""
+        echo "// proxyfix — Strava needs direct CN IP (not Clash proxy location)"
+        echo 'user_pref("network.proxy.type", 2);'
+        echo "user_pref(\"network.proxy.autoconfig_url\", \"file://${pac}\");"
+      } >>"$zen_user"
+      ok "Zen PAC → ${pac} (${zen_user})"
+    else
+      ok "Zen PAC already set (${zen_user})"
+    fi
+  done
+}
+
 verify_launch_wrappers() {
   local f
-  for f in cursor-launch steam-launch chromium-launch-webapp; do
+  for f in cursor-launch steam-launch chromium-launch-webapp anki-launch; do
     if [[ -x "${HOME}/.local/bin/${f}" ]]; then
       ok "launch wrapper: ${f}"
     else
@@ -75,11 +157,62 @@ verify_launch_wrappers() {
   done
 }
 
+fix_git_proxy() {
+  local port url
+  port=$(mixed_port)
+  url="http://127.0.0.1:${port}"
+  git config --global http.proxy "$url"
+  git config --global https.proxy "$url"
+  ok "git proxy → ${url}"
+}
+
+fix_gnome_proxy() {
+  command -v gsettings >/dev/null 2>&1 || return 0
+  local port host
+  port=$(mixed_port)
+  host=127.0.0.1
+  gsettings set org.gnome.system.proxy mode manual
+  gsettings set org.gnome.system.proxy use-same-proxy true
+  gsettings set org.gnome.system.proxy.http host "$host"
+  gsettings set org.gnome.system.proxy.http port "$port"
+  gsettings set org.gnome.system.proxy.http enabled true
+  gsettings set org.gnome.system.proxy.https host "$host"
+  gsettings set org.gnome.system.proxy.https port "$port"
+  gsettings set org.gnome.system.proxy.https enabled true 2>/dev/null || true
+  gsettings set org.gnome.system.proxy.socks host "$host"
+  gsettings set org.gnome.system.proxy.socks port "$port"
+  python3 - <<'PY'
+import subprocess
+extra = ["*.strava.com", "strava.com", "www.strava.com"]
+raw = subprocess.check_output(
+    ["gsettings", "get", "org.gnome.system.proxy", "ignore-hosts"],
+    text=True,
+).strip()
+if raw.startswith("["):
+    hosts = [h.strip().strip("'") for h in raw.strip("[]").split(",") if h.strip()]
+else:
+    hosts = []
+for h in extra:
+    if h not in hosts:
+        hosts.append(h)
+quoted = ", ".join(f"'{h}'" for h in hosts)
+subprocess.run(
+    ["gsettings", "set", "org.gnome.system.proxy", "ignore-hosts", f"[{quoted}]"],
+    check=True,
+)
+PY
+  ok "GNOME/GTK proxy → ${host}:${port} (Wike, WebKit, libsoup)"
+}
+
 fix_pacman_report() {
   local verify="${HOME}/.local/bin/omarchy-pacman-proxy-verify"
+  local installer="${PROXYFIX_ROOT}/bin/install-curl-proxy.sh"
+  if [[ -x $installer ]] && ! grep -q 'files\.sig' /etc/pacman.d/curl-proxy.sh 2>/dev/null; then
+    warn "pacman curl-proxy needs db/files.sig fix — run: ${installer}"
+  fi
   [[ -x $verify ]] || return
   if ! "$verify" >/dev/null 2>&1; then
-    warn "pacman proxy broken — run: omarchy-pacman-proxy-restore"
+    warn "pacman proxy broken — run: omarchy-pacman-proxy-restore OR ${installer}"
   fi
 }
 
@@ -95,7 +228,7 @@ main() {
   local patch_app=$APP_FILTER
   [[ $patch_app == clash ]] && patch_app=all
   case "$APP_FILTER" in
-    all|clash|steam|cursor|discord|pacman)
+    all|clash|steam|cursor|discord|pacman|strava)
       [[ -z ${QUIET:-} ]] && printf '\n--- Clash DNS / rules ---\n'
       bash "${SCRIPT_DIR}/patch-clash.sh" "$patch_app"
       ;;
@@ -112,6 +245,16 @@ main() {
   if [[ $APP_FILTER == all || $APP_FILTER == cursor ]]; then
     fix_cursor_settings
     fix_electron_flags
+    fix_chromium_flags
+  fi
+
+  if [[ $APP_FILTER == all || $APP_FILTER == git ]]; then
+    fix_git_proxy
+  fi
+
+  if [[ $APP_FILTER == all || $APP_FILTER == gtk ]]; then
+    fix_gnome_proxy
+    fix_zen_pac
   fi
 
   if [[ $APP_FILTER == all ]]; then

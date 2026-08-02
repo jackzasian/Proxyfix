@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# proxyfix-guard — safe auto-repair: snapshot → fix → validate → auto-rollback.
+#
+# Replaces bare `proxyfix fix --quiet` in the systemd auto-triggers so a bad
+# subscription update (or a bad patch) can never leave mihomo with a config
+# it cannot load. Validation is offline (`verge-mihomo -t`) plus an API hello;
+# on failure the last known-good config set is restored and mihomo reloaded.
+#
+# Env overrides (for testing): CLASH_DIR CLASH_SOCK MIHOMO_BIN SNAP_ROOT QUIET.
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROXYFIX_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
+export PROXYFIX_ROOT
+# shellcheck source=../lib/common.sh
+source "${PROXYFIX_ROOT}/lib/common.sh"
+
+MIHOMO_BIN="${MIHOMO_BIN:-/usr/bin/verge-mihomo}"
+SNAP_ROOT="${SNAP_ROOT:-${HOME}/.local/share/proxyfix/snapshots}"
+GOOD_DIR="${SNAP_ROOT}/known-good"
+PREV_DIR="${SNAP_ROOT}/pre-run"
+QUIET="${QUIET:-1}"
+
+# The set of files that together determine what mihomo loads and how the
+# enhancement layer rebuilds it. Paths are relative to $CLASH_DIR.
+CONFIG_SET=(
+  "clash-verge.yaml"             # generated runtime mihomo actually loads
+  "config.yaml"                  # core config (port, security)
+  "dns_config.yaml"
+  "profiles.yaml"                # profile registry
+  "profiles/mrkG4UPD40Es.yaml"   # merge enhancement (security + dns + rules)
+  "profiles/rT8qps5nUb4g.yaml"   # rules enhancement
+  "profiles/gHDtD8h76ZHx.yaml"   # groups enhancement (香港自动)
+  "profiles/RM0FPXAv4fiC.yaml"   # 极客云 subscription
+  "profiles/R63cfgA1xOQw.yaml"   # Dual+Net subscription
+)
+
+snapshot_into() {
+  local dest=$1 f
+  mkdir -p "$dest"
+  (cd "$CLASH_DIR" && for f in "${CONFIG_SET[@]}"; do
+    [[ -f $f ]] && cp --parents -af "$f" "$dest/" 2>/dev/null || true
+  done)
+}
+
+restore_from() {
+  local src=$1 f
+  (cd "$src" && for f in "${CONFIG_SET[@]}"; do
+    [[ -f $f ]] && cp --parents -af "$f" "$CLASH_DIR/" 2>/dev/null || true
+  done)
+}
+
+validate_runtime_file() {
+  [[ -x $MIHOMO_BIN && -f $CLASH_DIR/clash-verge.yaml ]] || return 1
+  "$MIHOMO_BIN" -d "$CLASH_DIR" -f "$CLASH_DIR/clash-verge.yaml" -t >/dev/null 2>&1
+}
+
+notify_breakage() {
+  local msg=$1
+  logger -t proxyfix-guard "$msg"
+  command -v notify-send >/dev/null 2>&1 && \
+    notify-send -u critical "Proxyfix guard" "$msg" 2>/dev/null || true
+}
+
+main() {
+  [[ -d $CLASH_DIR ]] || { logger -t proxyfix-guard "CLASH_DIR missing: $CLASH_DIR"; exit 1; }
+  mkdir -p "$GOOD_DIR" "$PREV_DIR"
+
+  # 1. Pre-run snapshot (also protects against a bad proxyfix patch itself).
+  snapshot_into "$PREV_DIR"
+
+  # 2. Repair pass (never trust its exit code — we validate objectively).
+  "${PROXYFIX_ROOT}/proxyfix" fix --quiet || true
+
+  # 3. Validate. The offline file test is the accept/reject gate; the API
+  #    state only decides whether a rollback needs a live reload.
+  local file_ok=1 api_state=down
+  validate_runtime_file && file_ok=0
+  clash_up && api_state=up
+
+  if (( file_ok == 0 )); then
+    snapshot_into "$GOOD_DIR"
+    logger -t proxyfix-guard "OK — config valid (api=${api_state}), known-good snapshot refreshed"
+    exit 0
+  fi
+
+  # 4. Breakage path — roll back to known-good (fallback: pre-run state).
+  notify_breakage "Clash config invalid after update/patch (api=${api_state}) — rolling back"
+  local restored="none"
+  if [[ -f $GOOD_DIR/clash-verge.yaml ]]; then
+    restore_from "$GOOD_DIR"
+    restored="known-good"
+  elif [[ -f $PREV_DIR/clash-verge.yaml ]]; then
+    restore_from "$PREV_DIR"
+    restored="pre-run"
+  fi
+
+  if [[ $restored != none ]] && validate_runtime_file; then
+    if [[ $api_state == up ]]; then
+      reload_mihomo || true
+    fi
+    notify_breakage "Rollback to ${restored} config applied — valid config restored"
+  else
+    notify_breakage "NO VALID SNAPSHOT AVAILABLE — manual repair needed (see journal: proxyfix-guard)"
+  fi
+  exit 1
+}
+
+main "$@"

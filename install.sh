@@ -26,7 +26,7 @@ Description=Proxyfix — detect and repair Clash proxy settings
 
 [Service]
 Type=oneshot
-ExecStart=${REPO}/proxyfix fix --quiet
+ExecStart=${REPO}/bin/proxyfix-guard
 Environment=HOME=${HOME}
 EOF
 ok "Wrote ${SYSTEMD}/proxyfix.service"

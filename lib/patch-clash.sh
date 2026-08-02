@@ -279,7 +279,7 @@ any_changed = False
 for t in targets:
     if patch_fake_ip_filter(t, fake_domains):
         any_changed = True
-    if app_filter in ("all", "steam", "strava") and patch_prepend_rules(t, direct_rules):
+    if app_filter in ("all", "steam", "strava", "pacman") and patch_prepend_rules(t, direct_rules):
         any_changed = True
 
 if direct_rules and patch_runtime_rules(runtime, direct_rules):
@@ -296,4 +296,7 @@ if reload_mihomo; then
 else
   warn "mihomo reload failed — restart Clash Verge if apps still broken"
 fi
-flush_dns
+# Avoid polkit fingerprint prompts from systemd user timers (QUIET=1).
+# NOTE: trailing || true — with QUIET=1 the && list would return 1 and,
+# as the script's last command, make systemd runs exit 1 despite success.
+[[ -z ${QUIET:-} ]] && flush_dns || true

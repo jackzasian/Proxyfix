@@ -185,7 +185,10 @@ check_connectivity() {
   while IFS= read -r line; do
     name="${line%%|*}"
     url="${line#*|}"
-    if curl -sS --max-time 12 -o /dev/null -w '' "$url" 2>/dev/null; then
+    # Retries: Clash nodes intermittently drop TLS handshakes (curl 35);
+    # a single-attempt check makes detect flappy without a real outage.
+    if curl -sS --max-time 12 --retry 2 --retry-all-errors --retry-delay 1 \
+         -o /dev/null -w '' "$url" 2>/dev/null; then
       ok "HTTPS → ${name}"
     else
       add_issue "connectivity:${name}"

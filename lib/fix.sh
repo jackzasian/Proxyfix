@@ -262,15 +262,19 @@ main() {
     fix_pacman_report
   fi
 
-  flush_dns
+  # Interactive runs only — quiet timer must not trigger polkit DNS-flush auth.
+  # NOTE: trailing || true on these guards — in quiet mode a bare
+  # `[[ -z ${QUIET} ]] && …` returns 1, and as main()'s last command that
+  # becomes the script's exit status (systemd then reports a false failure).
+  [[ -z ${QUIET:-} ]] && flush_dns || true
   log_run
 
-  [[ -z ${QUIET:-} ]] && printf '\n--- Re-check ---\n'
+  [[ -z ${QUIET:-} ]] && printf '\n--- Re-check ---\n' || true
   QUIET=${QUIET:-} bash "${SCRIPT_DIR}/detect.sh" || true
 
-  [[ -z ${QUIET:-} ]] && printf '\nDone.'
+  [[ -z ${QUIET:-} ]] && printf '\nDone.' || true
   [[ -z ${QUIET:-} && ($APP_FILTER == all || $APP_FILTER == cursor) ]] && \
-    printf ' Fully quit Cursor and reopen via cursor-launch for electron flags.\n\n'
+    printf ' Fully quit Cursor and reopen via cursor-launch for electron flags.\n\n' || true
 }
 
 main "$@"

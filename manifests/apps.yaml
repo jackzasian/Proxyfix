@@ -70,6 +70,11 @@ fake_ip_filter:
 
 # prepend-rules: large downloads bypass VPN node (DIRECT)
 direct_prepend_rules:
+  # Anthropic/Claude must exit US on BOTH providers — never HK (geo-blocked).
+  - DOMAIN-SUFFIX,anthropic.com,美国故障转移
+  - DOMAIN-SUFFIX,claude.ai,美国故障转移
+  - DOMAIN-SUFFIX,claude.com,美国故障转移
+  - DOMAIN-SUFFIX,claudeusercontent.com,美国故障转移
   - DOMAIN-SUFFIX,strava.com,DIRECT
   - DOMAIN-KEYWORD,strava,DIRECT
   - DOMAIN-SUFFIX,d3nn82uaxijpm6.cloudfront.net,DIRECT
@@ -235,12 +240,12 @@ apps:
       - www.strava.com
   spotify:
     proxy_prepend_rules:
-      - DOMAIN-SUFFIX,spotify.com,香港自动
-      - DOMAIN-SUFFIX,scdn.co,香港自动
-      - DOMAIN-SUFFIX,spotifycdn.com,香港自动
-      - DOMAIN-SUFFIX,spotifycdn.net,香港自动
-      - DOMAIN-SUFFIX,pscdn.co,香港自动
-      - DOMAIN-KEYWORD,spotify,香港自动
+      - DOMAIN-SUFFIX,spotify.com,香港故障转移
+      - DOMAIN-SUFFIX,scdn.co,香港故障转移
+      - DOMAIN-SUFFIX,spotifycdn.com,香港故障转移
+      - DOMAIN-SUFFIX,spotifycdn.net,香港故障转移
+      - DOMAIN-SUFFIX,pscdn.co,香港故障转移
+      - DOMAIN-KEYWORD,spotify,香港故障转移
 
 download:
   large_threshold_bytes: 52428800  # 50 MB

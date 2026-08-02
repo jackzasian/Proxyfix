@@ -12,6 +12,8 @@ fake_ip_filter:
   # Arch / Omarchy / pacman / git
   - '+.archlinux.org'
   - '+.archlinux.org.cn'
+  - '+.pkgbuild.com'
+  - '+geo.mirror.pkgbuild.com'
   - '+.omarchy.org'
   - '+.github.com'
   - '+github.com'
@@ -197,7 +199,16 @@ apps:
     fake_ip_filter:
       - '+.archlinux.org'
       - '+.archlinux.org.cn'
+      - '+.pkgbuild.com'
+      - '+geo.mirror.pkgbuild.com'
       - '+.omarchy.org'
+    # Prefer URLTest over sticky Dual Net node (NeaRoute TLS EOF)
+    direct_prepend_rules:
+      - DOMAIN-SUFFIX,pkgbuild.com,自动选择
+      - DOMAIN,geo.mirror.pkgbuild.com,自动选择
+      - DOMAIN-SUFFIX,archlinux.org,自动选择
+      - DOMAIN-SUFFIX,archlinux.org.cn,自动选择
+      - DOMAIN-SUFFIX,omarchy.org,自动选择
     probes:
       - aur.archlinux.org
   anki:

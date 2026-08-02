@@ -53,6 +53,11 @@ reload_mihomo() {
 }
 
 flush_dns() {
+  # resolvectl flush-caches needs polkit (fingerprint/password on this machine).
+  # Skip during quiet timer runs so proxyfix.timer doesn't nag every 10 minutes.
+  if [[ -n ${QUIET:-} || -n ${PROXYFIX_SKIP_DNS_FLUSH:-} ]]; then
+    return 0
+  fi
   resolvectl flush-caches 2>/dev/null || true
 }
 

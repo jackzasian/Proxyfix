@@ -55,6 +55,25 @@ validate_runtime_file() {
   "$MIHOMO_BIN" -d "$CLASH_DIR" -f "$CLASH_DIR/clash-verge.yaml" -t >/dev/null 2>&1
 }
 
+# Retry validation — Clash Verge may be asynchronously rewriting the
+# runtime after merge/profile changes and the first `-t` can fail on a
+# partial write.
+retry_validate() {
+  local max=5 delay=2 i
+  for ((i = 0; i < max; i++)); do
+    validate_runtime_file && return 0
+    sleep "$delay"
+  done
+  return 1
+}
+
+# Force mihomo to re-read the config: touch the runtime so its mtime
+# differs from mihomo's cached version, then issue the reload request.
+force_reload() {
+  [[ -f $CLASH_DIR/clash-verge.yaml ]] && touch "$CLASH_DIR/clash-verge.yaml"
+  reload_mihomo
+}
+
 notify_breakage() {
   local msg=$1
   logger -t proxyfix-guard "$msg"
@@ -72,10 +91,10 @@ main() {
   # 2. Repair pass (never trust its exit code — we validate objectively).
   "${PROXYFIX_ROOT}/proxyfix" fix --quiet || true
 
-  # 3. Validate. The offline file test is the accept/reject gate; the API
-  #    state only decides whether a rollback needs a live reload.
+  # 3. Validate with retry — Clash Verge may be asynchronously rewriting
+  #    the runtime after merge/profile changes.
   local file_ok=1 api_state=down
-  validate_runtime_file && file_ok=0
+  retry_validate && file_ok=0
   clash_up && api_state=up
 
   if (( file_ok == 0 )); then
@@ -95,15 +114,16 @@ main() {
     restored="pre-run"
   fi
 
-  if [[ $restored != none ]] && validate_runtime_file; then
+  if [[ $restored != none ]] && retry_validate; then
     if [[ $api_state == up ]]; then
-      reload_mihomo || true
+      force_reload || reload_mihomo || true
     fi
     notify_breakage "Rollback to ${restored} config applied — valid config restored"
+    exit 0
   else
     notify_breakage "NO VALID SNAPSHOT AVAILABLE — manual repair needed (see journal: proxyfix-guard)"
+    exit 1
   fi
-  exit 1
 }
 
 main "$@"

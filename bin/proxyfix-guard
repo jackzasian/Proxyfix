@@ -22,18 +22,23 @@ PREV_DIR="${SNAP_ROOT}/pre-run"
 QUIET="${QUIET:-1}"
 
 # The set of files that together determine what mihomo loads and how the
-# enhancement layer rebuilds it. Paths are relative to $CLASH_DIR.
+# enhancement layer rebuilds it. Paths are relative to $CLASH_DIR; the
+# per-install enhancement chain and subscriptions are resolved at runtime.
 CONFIG_SET=(
   "clash-verge.yaml"             # generated runtime mihomo actually loads
   "config.yaml"                  # core config (port, security)
   "dns_config.yaml"
   "profiles.yaml"                # profile registry
-  "profiles/mrkG4UPD40Es.yaml"   # merge enhancement (security + dns + rules)
-  "profiles/rT8qps5nUb4g.yaml"   # rules enhancement
-  "profiles/gHDtD8h76ZHx.yaml"   # groups enhancement (香港自动)
-  "profiles/RM0FPXAv4fiC.yaml"   # 极客云 subscription
-  "profiles/R63cfgA1xOQw.yaml"   # Dual+Net subscription
 )
+
+proxyfix_resolve_profiles
+# shellcheck disable=SC2086  # PROXYFIX_REMOTE_PROFILES is a space-separated list
+for _p in "${PROXYFIX_MERGE_PROFILE:-}" "${PROXYFIX_RULES_PROFILE:-}" \
+          "${PROXYFIX_GROUPS_PROFILE:-}" "${PROXYFIX_SCRIPT_PROFILE:-}" \
+          "${PROXYFIX_PROXIES_PROFILE:-}" ${PROXYFIX_REMOTE_PROFILES:-}; do
+  [[ -n $_p ]] && CONFIG_SET+=("profiles/${_p}")
+done
+unset _p
 
 snapshot_into() {
   local dest=$1 f

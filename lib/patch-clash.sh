@@ -8,7 +8,10 @@ source "${SCRIPT_DIR}/common.sh"
 
 APP_FILTER="${1:-all}"
 
-python3 - "$MANIFEST" "$APP_FILTER" "$CLASH_DIR" <<'PY'
+MERGE_PROFILE=$(merge_profile_path)
+RULES_PROFILE=$(rules_profile_path || true)
+
+python3 - "$MANIFEST" "$APP_FILTER" "$CLASH_DIR" "$MERGE_PROFILE" "$RULES_PROFILE" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -16,20 +19,18 @@ from pathlib import Path
 manifest_path = Path(sys.argv[1])
 app_filter = sys.argv[2]
 clash_dir = Path(sys.argv[3])
+merge_profile = Path(sys.argv[4]) if sys.argv[4] else None
+rules_profile = Path(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] else None
 
 
 def load_manifest(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     data = {
-        "merge_profile": "mrkG4UPD40Es.yaml",
         "fake_ip_filter": [],
         "direct_prepend_rules": [],
     }
     key = None
     for line in text.splitlines():
-        if line.startswith("merge_profile:"):
-            data["merge_profile"] = line.split(":", 1)[1].strip()
-            continue
         m = re.match(r"^(\w+):\s*$", line)
         if m and m.group(1) in ("fake_ip_filter", "direct_prepend_rules"):
             key = m.group(1)
@@ -270,9 +271,9 @@ def patch_rules_profile(path: Path, rules: list) -> bool:
 
 data = load_manifest(manifest_path)
 fake_domains, direct_rules = domains_for_filter(data, app_filter)
-merge = clash_dir / "profiles" / data["merge_profile"]
-rules_profile = clash_dir / "profiles" / "rT8qps5nUb4g.yaml"
-targets = [merge, clash_dir / "clash-verge.yaml", clash_dir / "dns_config.yaml"]
+targets = [clash_dir / "clash-verge.yaml", clash_dir / "dns_config.yaml"]
+if merge_profile is not None:
+    targets.insert(0, merge_profile)
 runtime = clash_dir / "clash-verge.yaml"
 
 any_changed = False
@@ -285,7 +286,7 @@ for t in targets:
 if direct_rules and patch_runtime_rules(runtime, direct_rules):
     any_changed = True
 
-if direct_rules and patch_rules_profile(rules_profile, direct_rules):
+if direct_rules and rules_profile is not None and patch_rules_profile(rules_profile, direct_rules):
     any_changed = True
 
 sys.exit(0 if any_changed else 0)

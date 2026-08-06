@@ -67,22 +67,45 @@ host_resolves_fake_ip() {
   [[ ${ip:-} == 198.18.* ]]
 }
 
-merge_profile_path() {
-  python3 - "$MANIFEST" <<'PY'
-import re, sys
-from pathlib import Path
+PROFILE_RESOLVER="${PROFILE_RESOLVER:-${PROXYFIX_ROOT}/lib/resolve-profiles.py}"
 
-manifest = Path(sys.argv[1])
-clash_dir = Path.home() / ".local/share/io.github.clash-verge-rev.clash-verge-rev"
-name = "mrkG4UPD40Es.yaml"
-if manifest.exists():
-    for line in manifest.read_text(encoding="utf-8").splitlines():
-        if line.startswith("merge_profile:"):
-            name = line.split(":", 1)[1].strip()
-            break
-print(clash_dir / "profiles" / name)
-PY
+# Clash Verge names profile files after per-install UIDs, so they cannot be
+# hardcoded. Resolve the active chain once; any PROXYFIX_*_PROFILE already
+# present in the environment wins so the chain can be pinned or tested.
+proxyfix_resolve_profiles() {
+  [[ -n ${PROXYFIX_PROFILES_RESOLVED:-} ]] && return 0
+  declare -g PROXYFIX_PROFILES_RESOLVED=1
+  local key value
+  while IFS='=' read -r key value; do
+    [[ -z $key || -z $value ]] && continue
+    [[ -n ${!key:-} ]] && continue
+    declare -g "${key}=${value}"
+  done < <(python3 "$PROFILE_RESOLVER" "$CLASH_DIR" 2>/dev/null || true)
+  return 0
 }
+
+# Read a scalar key from manifests/apps.yaml.
+manifest_value() {
+  local key=$1
+  [[ -f $MANIFEST ]] || return 0
+  awk -v k="^${key}:" '$0 ~ k { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }' "$MANIFEST"
+}
+
+# Precedence: manifest override → auto-detected chain → Verge's global Merge.yaml.
+profile_path() {
+  local kind=$1 var="PROXYFIX_${1^^}_PROFILE" name
+  name=$(manifest_value "${kind}_profile")
+  if [[ -z $name || $name == auto ]]; then
+    proxyfix_resolve_profiles
+    name=${!var:-}
+  fi
+  [[ -z $name && $kind == merge ]] && name="Merge.yaml"
+  [[ -z $name ]] && return 1
+  printf '%s\n' "${CLASH_DIR}/profiles/${name}"
+}
+
+merge_profile_path() { profile_path merge; }
+rules_profile_path() { profile_path rules; }
 
 log_run() {
   mkdir -p "$LOG_DIR"

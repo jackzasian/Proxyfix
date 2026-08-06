@@ -31,6 +31,16 @@ Environment=HOME=${HOME}
 EOF
 ok "Wrote ${SYSTEMD}/proxyfix.service"
 
+# Profile filenames are per-install UIDs — resolve the active chain instead of
+# assuming any particular one exists.
+WATCH_PROFILES=""
+while IFS='=' read -r key value; do
+  case "$key" in
+    PROXYFIX_MERGE_PROFILE | PROXYFIX_CURRENT_PROFILE)
+      WATCH_PROFILES+="PathChanged=${CLASH_DIR}/profiles/${value}"$'\n' ;;
+  esac
+done < <(python3 "${REPO}/lib/resolve-profiles.py" "$CLASH_DIR" 2>/dev/null || true)
+
 cat >"${SYSTEMD}/proxyfix.path" <<EOF
 [Unit]
 Description=Run proxyfix when Clash config changes
@@ -39,9 +49,8 @@ Description=Run proxyfix when Clash config changes
 PathChanged=${CLASH_DIR}/config.yaml
 PathChanged=${CLASH_DIR}/clash-verge.yaml
 PathChanged=${CLASH_DIR}/dns_config.yaml
-PathChanged=${CLASH_DIR}/profiles/mrkG4UPD40Es.yaml
-PathChanged=${CLASH_DIR}/profiles/RM0FPXAv4fiC.yaml
-
+PathChanged=${CLASH_DIR}/profiles.yaml
+${WATCH_PROFILES}
 [Install]
 WantedBy=paths.target
 EOF

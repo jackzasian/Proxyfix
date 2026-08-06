@@ -1,7 +1,10 @@
 # Proxyfix manifest — single source of truth for Clash fake-ip-filter and DIRECT rules.
 # Parsed by lib/patch-clash.sh and bin/proxyfix-download.
 
-merge_profile: mrkG4UPD40Es.yaml
+# `auto` resolves the active subscription's merge profile from Clash Verge's
+# profiles.yaml. Override with a filename (e.g. Merge.yaml) to pin it.
+merge_profile: auto
+rules_profile: auto
 
 fake_ip_filter:
   # Always present (security / LAN)

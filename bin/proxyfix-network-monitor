@@ -2,8 +2,8 @@
 # Run proxyfix on connectivity changes (WiFi switch, etc.) via `ip monitor route`.
 set -euo pipefail
 
-HOME="${HOME:-/home/jackz}"
-PROXYFIX="${HOME}/Developer/Proxyfix/proxyfix"
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROXYFIX="${PROXYFIX:-$(cd "${SCRIPT_DIR}/.." && pwd)/proxyfix}"
 DEBOUNCE_SEC=5
 LAST_RUN=0
 
@@ -19,9 +19,9 @@ run_fix() {
   "$PROXYFIX" fix --quiet || true
 }
 
-# This machine uses iwd (no NetworkManager/nmcli). iproute2's `ip monitor`
-# emits default-route add/delete events on any connectivity change,
-# regardless of the WiFi backend.
+# iproute2's `ip monitor` emits default-route add/delete events on any
+# connectivity change, so this works with iwd, NetworkManager, or systemd-networkd
+# without depending on nmcli.
 if ! command -v ip >/dev/null 2>&1; then
   logger -t proxyfix-network "ip(8) missing — network monitor exiting"
   exit 1

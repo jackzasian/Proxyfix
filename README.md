@@ -70,7 +70,32 @@ journalctl --user -t proxyfix -n 10
 
 After Cursor fixes: **fully quit Cursor** and reopen via `cursor-launch`.
 
-## Related
+## Configuration
 
-- `cursor-tools fix-all` — delegates to `proxyfix fix` + folder-sort + network test
-- Hermes note: `04 Tech/Hermes/proxyfix.md`
+Profile filenames in Clash Verge are per-install UIDs, so proxyfix resolves the
+active subscription's enhancement chain from `profiles.yaml` at runtime — there
+is nothing to edit to get started.
+
+To pin a specific profile instead, set it in `manifests/apps.yaml`:
+
+```yaml
+merge_profile: Merge.yaml   # or `auto` (default)
+rules_profile: auto
+```
+
+Environment overrides take precedence over both, which is useful for testing:
+
+| Variable | Purpose |
+|----------|---------|
+| `CLASH_DIR` | Clash Verge data directory |
+| `PROXYFIX_MERGE_PROFILE` | Merge profile filename |
+| `PROXYFIX_RULES_PROFILE` | Rules profile filename |
+
+## Requirements
+
+- Arch Linux (or derivative) with Clash Verge Rev
+- `bash`, `python3`, `curl`, `iproute2`, `systemd` user units
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

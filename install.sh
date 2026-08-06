@@ -107,16 +107,24 @@ out = []
 done = False
 for line in lines:
     if line.startswith("startup_script:"):
-        out.append(f"startup_script: {bin_path} fix --quiet")
+        # Clash Verge only accepts a .sh path (no argv). See proxyfix-startup.sh.
+        out.append(f"startup_script: {Path.home()}/.local/bin/proxyfix-startup.sh")
         done = True
     else:
         out.append(line)
 if not done:
-    out.append(f"startup_script: {bin_path} fix --quiet")
+    out.append(f"startup_script: {Path.home()}/.local/bin/proxyfix-startup.sh")
 path.write_text("\n".join(out) + "\n", encoding="utf-8")
 print("OK")
 PY
-    ok "Set Clash Verge startup_script → proxyfix fix --quiet"
+    # Ensure the wrapper exists
+    cat >"${HOME}/.local/bin/proxyfix-startup.sh" <<'WRAP'
+#!/usr/bin/env bash
+set -euo pipefail
+exec "${HOME}/.local/bin/proxyfix-guard"
+WRAP
+    chmod +x "${HOME}/.local/bin/proxyfix-startup.sh"
+    ok "Set Clash Verge startup_script → proxyfix-startup.sh"
   else
     warn "verge.yaml has no startup_script key — add manually"
   fi

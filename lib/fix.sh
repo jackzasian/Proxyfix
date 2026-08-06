@@ -148,7 +148,7 @@ fix_zen_pac() {
 
 verify_launch_wrappers() {
   local f
-  for f in cursor-launch steam-launch chromium-launch-webapp anki-launch; do
+  for f in cursor-launch claude-desktop-launch steam-launch chromium-launch-webapp anki-launch; do
     if [[ -x "${HOME}/.local/bin/${f}" ]]; then
       ok "launch wrapper: ${f}"
     else

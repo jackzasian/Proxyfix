@@ -202,6 +202,63 @@ aur|https://aur.archlinux.org
 EOF
 }
 
+# Routing policy: Spotify=HK, Claude/Cursor/OpenCode=US (degraded last hop allowed)
+check_routing_policy() {
+  local runtime rules_ok=1
+  runtime="${CLASH_RUNTIME:-${CLASH_DIR}/clash-verge.yaml}"
+  [[ -f $runtime ]] || return 0
+
+  if ! grep -qE 'DOMAIN-SUFFIX,cursor\.sh,美国故障转移' "$runtime" 2>/dev/null; then
+    add_issue "routing_cursor_us"
+    fail "cursor.sh not routed to 美国故障转移 (see ROUTING.md)"
+    rules_ok=0
+  fi
+  if ! grep -qE 'DOMAIN-SUFFIX,anthropic\.com,美国故障转移' "$runtime" 2>/dev/null; then
+    add_issue "routing_claude_us"
+    fail "anthropic.com not routed to 美国故障转移"
+    rules_ok=0
+  fi
+  if ! grep -qE 'DOMAIN-SUFFIX,spotify\.com,香港故障转移' "$runtime" 2>/dev/null; then
+    add_issue "routing_spotify_hk"
+    fail "spotify.com not routed to 香港故障转移"
+    rules_ok=0
+  fi
+  if ! grep -qE 'DOMAIN-SUFFIX,opencode\.ai,美国故障转移' "$runtime" 2>/dev/null; then
+    add_issue "routing_opencode_us"
+    fail "opencode.ai not routed to 美国故障转移"
+    rules_ok=0
+  fi
+  if ((rules_ok)); then
+    ok "Routing rules: Claude/Cursor/OpenCode→US, Spotify→HK"
+  fi
+
+  clash_up || return 0
+  local now members alive_us
+  now=$(curl -sS --max-time 3 --unix-socket "$CLASH_SOCK" http://localhost/proxies 2>/dev/null \
+    | python3 -c 'import sys,json;d=json.load(sys.stdin)["proxies"];
+us=d.get("美国故障转移") or {}; print(us.get("now") or "?");
+print(",".join(us.get("all") or []));
+print(sum(1 for n in ("美国aw1","美国aw2","美国aw3","美国aw4","美国1","美国2") if (d.get(n) or {}).get("alive")))' 2>/dev/null) || true
+  if [[ -z $now ]]; then
+    warn "Could not query US group health via API"
+    return 0
+  fi
+  members=$(printf '%s\n' "$now" | sed -n '2p')
+  alive_us=$(printf '%s\n' "$now" | sed -n '3p')
+  now=$(printf '%s\n' "$now" | sed -n '1p')
+  if [[ $members != *自动选择* ]]; then
+    add_issue "us_no_degraded_hop"
+    fail "美国故障转移 missing 自动选择 degraded hop (now=${now})"
+  else
+    info "美国故障转移 now=${now} members=${members}"
+  fi
+  if [[ ${alive_us:-0} -eq 0 ]]; then
+    warn "All 极客云 US leaves dead — 美国故障转移 may be on Dualnet/自动选择 (degraded)"
+  else
+    ok "US nodes: ${alive_us} 极客云 US leaf(s) alive"
+  fi
+}
+
 main() {
   [[ -z ${QUIET:-} ]] && printf '\n=== proxyfix detect ===\n\n'
   check_clash_up || true
@@ -215,6 +272,7 @@ main() {
     check_gnome_proxy
     check_pacman_proxy
     check_connectivity
+    check_routing_policy
   fi
   [[ -z ${QUIET:-} ]] && printf '\n'
   if ((${#ISSUES[@]} > 0)); then

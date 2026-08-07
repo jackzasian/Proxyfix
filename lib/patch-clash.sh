@@ -11,7 +11,8 @@ APP_FILTER="${1:-all}"
 MERGE_PROFILE=$(merge_profile_path)
 RULES_PROFILE=$(rules_profile_path || true)
 
-python3 - "$MANIFEST" "$APP_FILTER" "$CLASH_DIR" "$MERGE_PROFILE" "$RULES_PROFILE" <<'PY'
+_patched=0
+python3 - "$MANIFEST" "$APP_FILTER" "$CLASH_DIR" "$MERGE_PROFILE" "$RULES_PROFILE" <<'PY' || _patched=$?
 import re
 import sys
 from pathlib import Path
@@ -289,13 +290,15 @@ if direct_rules and patch_runtime_rules(runtime, direct_rules):
 if direct_rules and rules_profile is not None and patch_rules_profile(rules_profile, direct_rules):
     any_changed = True
 
-sys.exit(0 if any_changed else 0)
+sys.exit(0 if any_changed else 1)
 PY
 
-if reload_mihomo; then
-  ok "mihomo config reloaded"
-else
-  warn "mihomo reload failed — restart Clash Verge if apps still broken"
+if (( _patched == 0 )); then
+  if reload_mihomo; then
+    ok "mihomo config reloaded"
+  else
+    warn "mihomo reload failed — restart Clash Verge if apps still broken"
+  fi
 fi
 # Avoid polkit fingerprint prompts from systemd user timers (QUIET=1).
 # NOTE: trailing || true — with QUIET=1 the && list would return 1 and,

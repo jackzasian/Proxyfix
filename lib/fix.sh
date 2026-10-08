@@ -3,6 +3,11 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "${SCRIPT_DIR}/owner.sh"
+if proxy_owner_is_relaypilot; then
+  proxy_owner_refuse_legacy_repair
+  exit 2
+fi
 # shellcheck source=common.sh
 source "${SCRIPT_DIR}/common.sh"
 

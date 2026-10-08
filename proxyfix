@@ -12,6 +12,16 @@ done
 PROXYFIX_ROOT=$(cd "$(dirname "$_src")" && pwd)
 export PROXYFIX_ROOT
 
+source "${PROXYFIX_ROOT}/lib/owner.sh"
+if proxy_owner_is_relaypilot; then
+  case "${1:-fix}" in
+    fix|"") proxy_owner_refuse_legacy_repair; exit 2 ;;
+    detect|status)
+      exec "${HOME}/.local/bin/relaypilotd" --config "${HOME}/.config/relaypilot/config.yaml" status
+      ;;
+  esac
+fi
+
 usage() {
   cat <<EOF
 Usage: proxyfix [command] [options]
